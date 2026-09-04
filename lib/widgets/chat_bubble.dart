@@ -120,7 +120,7 @@ class ChatBubble extends StatelessWidget {
                 ),
               ],
 
-              // Copy-text button (Khmer: ចម្លងអត្ថបទ)
+              // Copy-text button
               if ((isUser ? visibleContent : answerContent).trim().isNotEmpty) ...[
                 const SizedBox(height: 6),
                 _CopyTextButton(
@@ -268,9 +268,9 @@ class ChatBubble extends StatelessWidget {
 }
 
 /// Small action button shown under each chat bubble that copies the message
-/// text to the system clipboard. The label is in Khmer:
-///  - «ចម្លងអត្ថបទ» ("Copy text") in its idle state
-///  - «ចម្លងរួចរាល់» ("Copied") right after a successful copy
+/// text to the system clipboard.
+///  - "Copy" in its idle state
+///  - "Copied" right after a successful copy
 class _CopyTextButton extends StatefulWidget {
   final String text;
   final bool isUserBubble;
@@ -284,8 +284,8 @@ class _CopyTextButton extends StatefulWidget {
 class _CopyTextButtonState extends State<_CopyTextButton> {
   bool _copied = false;
 
-  static const _khmerCopyLabel = 'ចម្លងអត្ថបទ'; // "Copy text" in Khmer
-  static const _khmerCopiedLabel = 'ចម្លងរួចរាល់'; // "Copied" in Khmer
+  static const _copyLabel = 'Copy';
+  static const _copiedLabel = 'Copied';
 
   Future<void> _copy() async {
     if (_copied) return;
@@ -320,8 +320,8 @@ class _CopyTextButtonState extends State<_CopyTextButton> {
               ),
               const SizedBox(width: 5),
               Text(
-                _copied ? _khmerCopiedLabel : _khmerCopyLabel,
-                style: GoogleFonts.notoSansKhmer(
+                _copied ? _copiedLabel : _copyLabel,
+                style: GoogleFonts.inter(
                   fontSize: 11,
                   color: color,
                   fontWeight: FontWeight.w500,
