@@ -41,6 +41,16 @@ class SettingsController extends GetxController {
   final openRouterModel = 'openai/gpt-4o-mini'.obs;
   final deepSeekModel = 'deepseek-v4-flash'.obs;
   final customCloudModel = ''.obs;
+  // Custom API (xkiro / OpenRouter) - new fields
+  final customApiKey = ''.obs;
+  final customApiBaseUrl = ''.obs;
+  final customApiModels = <String>[].obs;
+  final customApiModel = ''.obs;
+  final customApiKeyController = TextEditingController();
+  final customApiBaseUrlController = TextEditingController();
+  final customApiModelController = TextEditingController();
+  final isLoadingCustomApi = false.obs;
+  final customApiError = ''.obs;
   final globalSystemPrompt = AppConstants.systemPrompt.obs;
   final nvidiaModels = <String>[].obs;
   final isLoadingNvidiaModels = false.obs;
@@ -89,6 +99,16 @@ class SettingsController extends GetxController {
     super.onInit();
     _loadSettings();
     unawaited(_loadAppVersion());
+    // Load custom API settings
+    customApiKey.value = _hive.getSetting(AppConstants.keyCustomApiKey) ?? '';
+    customApiBaseUrl.value = _hive.getSetting(AppConstants.keyCustomApiBaseUrl) ?? '';
+    customApiModels.value = _hive.getSetting(AppConstants.keyCustomApiModels) != null
+        ? List<String>.from(_hive.getSetting(AppConstants.keyCustomApiModels))
+        : [];
+    customApiModel.value = _hive.getSetting(AppConstants.keyCustomApiModel) ?? '';
+    customApiKeyController.text = customApiKey.value;
+    customApiBaseUrlController.text = customApiBaseUrl.value;
+    customApiModelController.text = customApiModel.value;
   }
 
   Future<void> _loadAppVersion() async {
@@ -123,6 +143,9 @@ class SettingsController extends GetxController {
     openRouterModelController.dispose();
     deepSeekModelController.dispose();
     customCloudModelController.dispose();
+    customApiKeyController.dispose();
+    customApiBaseUrlController.dispose();
+    customApiModelController.dispose();
     _apiKeyDebounceTimer?.cancel();
     _modelDebounceTimer?.cancel();
     super.onClose();
@@ -180,7 +203,16 @@ class SettingsController extends GetxController {
         _hive.getSetting(AppConstants.keyCustomCloudModel) ?? '';
     _loadCustomCloudProfiles();
     globalSystemPrompt.value = _hive.getSetting(
-            AppConstants.keyGlobalSystemPrompt,
+    // Custom API settings
+    customApiKey.value = _hive.getSetting(AppConstants.keyCustomApiKey) ?? '';
+    customApiBaseUrl.value = _hive.getSetting(AppConstants.keyCustomApiBaseUrl) ?? '';
+    customApiModels.value = _hive.getSetting(AppConstants.keyCustomApiModels) != null
+        ? List<String>.from(_hive.getSetting(AppConstants.keyCustomApiModels))
+        : [];
+    customApiModel.value = _hive.getSetting(AppConstants.keyCustomApiModel) ?? '';
+    customApiKeyController.text = customApiKey.value;
+    customApiBaseUrlController.text = customApiBaseUrl.value;
+    customApiModelController.text = customApiModel.value;
             defaultValue: AppConstants.systemPrompt) ??
         AppConstants.systemPrompt;
     temperature.value = _hive.getSetting(AppConstants.keyTemperature,
@@ -516,6 +548,20 @@ class SettingsController extends GetxController {
     await _saveCustomCloudProfiles();
   }
 
+  Future<void> clearCustomApi() async {
+    customApiKey.value = '';
+    customApiBaseUrl.value = '';
+    customApiModels.value = [];
+    customApiModel.value = '';
+    customApiKeyController.clear();
+    customApiBaseUrlController.clear();
+    customApiModelController.clear();
+    await _hive.setSetting(AppConstants.keyCustomApiKey, '');
+    await _hive.setSetting(AppConstants.keyCustomApiBaseUrl, '');
+    await _hive.setSetting(AppConstants.keyCustomApiModels, []);
+    await _hive.setSetting(AppConstants.keyCustomApiModel, '');
+  }
+
   void beginNewCustomCloudProfile() {
     customCloudProfileIndex.value = -1;
     customCloudName.value = 'Custom API';
@@ -593,6 +639,45 @@ class SettingsController extends GetxController {
     globalSystemPrompt.value = normalized;
     globalSystemPromptController.text = normalized;
     await _hive.setSetting(AppConstants.keyGlobalSystemPrompt, normalized);
+  }
+
+  Future<void> loadCustomApiModels() async {
+    final key = customApiKey.value.trim();
+    final baseUrl = customApiBaseUrl.value.trim();
+    if (key.isEmpty || baseUrl.isEmpty) {
+      customApiError.value = 'បញ្ជាក់ API នេះត្រូវឱ្យត្រឹមអាង!';
+      return;
+    }
+    customApiError.value = '';
+    isLoadingCustomApi.value = true;
+    try {
+      final client = http.Client();
+      final uri = Uri.parse('$baseUrl/v1/models');
+      final response = client.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $key',
+          'Content-Type': 'application/json',
+        },
+      );
+      client.dispose();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final rawModels = data['data'] as List? ?? [];
+        final modelIds = rawModels.map((m) => m['id']?.toString()).whereType<String>().toList();
+        customApiModels.value = modelIds;
+        if (modelIds.isNotEmpty) {
+          customApiModel.value = modelIds.first;
+        }
+        customApiError.value = '';
+      } else {
+        customApiError.value = 'ការបញ្ជាក់សំខាន់កំនត់មិនអាច (${response.statusCode})';
+      }
+    } catch (e) {
+      customApiError.value = 'ការការណ៍មិនអាច: $e';
+    } finally {
+      isLoadingCustomApi.value = false;
+    }
   }
 
   String effectiveSystemPromptForModel(String modelName) {
