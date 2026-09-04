@@ -53,6 +53,21 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        ndk {
+            // Ship only ARM64 native code.
+            //
+            // Without this, the APK bundles the Flutter engine, the LiteRT-LM
+            // AAR (litertlm-android ships .so files for every ABI) and the
+            // Stable Diffusion runtime for armeabi-v7a + arm64-v8a + x86_64,
+            // which is 3x the native size. Every phone shipping Android 9+
+            // that can run this app is arm64-v8a (and the llama.cpp plugin
+            // already builds arm64-only), so 32-bit/x86 copies are dead weight.
+            //
+            // Note: Flutter 3.35+ sets its own default abiFilters before this
+            // block runs — clear() first so arm64-v8a wins in all cases.
+            abiFilters.clear()
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
 
@@ -74,8 +89,38 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // R8 code shrinking + obfuscation and Android resource shrinking.
+            // The Flutter Gradle plugin automatically pairs these with
+            // proguard-android-optimize.txt, the engine's flutter_proguard_rules.pro,
+            // and android/app/proguard-rules.pro (kept JNI surfaces for the
+            // local llama / stable-diffusion plugins).
+            isMinifyEnabled = true
+            isShrinkResources = true
+        }
+    }
+
+    packaging {
+        jniLibs {
+            // Store .so files compressed inside the APK instead of the legacy
+            // uncompressed layout. Requires API 23+ (minSdk is 28). This is
+            // what Google Play does for App Bundles and typically saves 30-40%
+            // of the native runtime size (llama/ggml, stable-diffusion,
+            // LiteRT-LM, Flutter engine).
+            useLegacyPackaging = false
+            // If two sources ship the same native lib (e.g. the SD plugin's
+            // bundled libomp.so), keep the first one deterministically
+            // instead of failing the packaging step.
+            pickFirsts += listOf("lib/arm64-v8a/libomp.so")
+        }
+        resources {
+            // Drop license/meta noise duplicated across AARs.
+            excludes += listOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/*.kotlin_module"
+            )
         }
     }
 }
