@@ -16,19 +16,31 @@ jobs:
 
     steps:
       - name: Checkout source (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Verify native submodules are checked out
+        run: |
+          set -e
+          SD_DIR="local_plugins/sd_flutter_android/android/src/main/cpp/stable-diffusion.cpp"
+          if [ ! -f "$SD_DIR/CMakeLists.txt" ]; then
+            echo "::error::submodule $SD_DIR is empty. Run 'git submodule update --init --recursive'."
+            git submodule status --recursive || true
+            exit 1
+          fi
+          echo "stable-diffusion.cpp present:"
+          (cd "$SD_DIR" && git rev-parse HEAD)
+
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Install Android platform / build-tools / NDK / CMake
         run: |
@@ -57,7 +69,7 @@ jobs:
         run: flutter doctor -v
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Install dependencies
         run: flutter pub get
@@ -67,10 +79,15 @@ jobs:
         continue-on-error: true
 
       - name: Build Debug APK
-        run: flutter build apk --debug --verbose
+        # Native inference plugins (llama.cpp, stable-diffusion.cpp) ship
+        # arm64-v8a only (see their abiFilters), so restrict the Flutter
+        # target platform to android-arm64. Building armeabi-v7a/x86/x86_64
+        # would quadruple the native compile time and fail: the bundled
+        # libomp.so is arm64-only.
+        run: flutter build apk --debug --target-platform android-arm64 --verbose
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-debug-apk
           path: |
