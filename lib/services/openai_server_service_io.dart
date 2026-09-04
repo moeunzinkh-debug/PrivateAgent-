@@ -15,6 +15,8 @@ class OpenAiServerService {
   HttpServer? _server;
   bool _busy = false;
   String? _apiKey;
+  String? _customApiKey;
+  String? _customBaseUrl;
   void Function(String)? _onLog;
 
   bool get isRunning => _server != null;
@@ -37,6 +39,8 @@ class OpenAiServerService {
   }) async {
     if (_server != null) return;
     _apiKey = apiKey?.trim();
+    _customApiKey = Get.find<SettingsController>().customApiKey.value.trim();
+    _customBaseUrl = Get.find<SettingsController>().customApiBaseUrl.value.trim() || 'https://openrouter.ai';
     _onLog = onLog;
     _lastReachableAddress = await _reachableIpv4Address();
     _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
@@ -121,6 +125,12 @@ class OpenAiServerService {
   Future<void> _handleModels(HttpRequest request) async {
     final inference = Get.find<InferenceService>();
     final hasModel = inference.isModelLoaded.value;
+    final settings = Get.find<SettingsController>();
+    final customKey = settings.customApiKey.value.trim();
+    final customBaseUrl = settings.customApiBaseUrl.value.trim();
+    final customModels = customKey.isNotEmpty && customBaseUrl.isNotEmpty
+        ? _getCustomModels(customBaseUrl, customKey)
+        : [];
     await _json(request, {
       'object': 'list',
       'data': [
@@ -131,8 +141,35 @@ class OpenAiServerService {
             'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
             'owned_by': 'local',
           }
+        if (customModels.isNotEmpty)
+          {
+            'id': customModels[0],
+            'object': 'model',
+            'created': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            'owned_by': 'custom',
+          }
       ],
     });
+  }
+
+  List<String> _getCustomModels(String baseUrl, String apiKey) {
+    try {
+      final client = http.Client();
+      final uri = Uri.parse('$baseUrl/v1/models');
+      final response = client.get(uri, headers: {
+        'Authorization': 'Bearer $apiKey',
+        'Content-Type': 'application/json',
+      });
+      client.dispose();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final rawModels = data['data'] as List? ?? [];
+        return rawModels.map((m) => m['id']?.toString()).whereType<String>().toList();
+      }
+    } catch (e) {
+      // Silently fail - will show empty custom models
+    }
+    return [];
   }
 
   Future<void> _handleCapabilities(HttpRequest request) async {
@@ -158,6 +195,20 @@ class OpenAiServerService {
   Future<void> _handleChatCompletions(HttpRequest request) async {
     final body = await _readJson(request);
     final inference = Get.find<InferenceService>();
+    final settings = Get.find<SettingsController>();
+    final hasLocalModel = inference.isModelLoaded.value;
+    final customKey = settings.customApiKey.value.trim();
+    final customBaseUrl = settings.customApiBaseUrl.value.trim();
+
+    // If using custom API and no local model, try to fetch from custom API
+    if (!hasLocalModel && customKey.isNotEmpty && customBaseUrl.isNotEmpty) {
+      final result = await _tryCustomApiChat(body, customKey, customBaseUrl);
+      if (result != null) {
+        await _json(request, result);
+        return;
+      }
+    }
+
     final modelError = _localModelError(inference);
     if (modelError != null) {
       await _json(request, {'error': modelError},
@@ -207,6 +258,42 @@ class OpenAiServerService {
       _busy = false;
       await parsed.cleanup();
     }
+  }
+
+  Future<Map<String, dynamic>?> _tryCustomApiChat(
+      Map<String, dynamic> body, String apiKey, String baseUrl) async {
+    try {
+      final client = http.Client();
+      final uri = Uri.parse('$baseUrl/v1/chat/completions');
+      final response = client.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      client.dispose();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final choices = data['choices'] as List?;
+        if (choices != null && choices.isNotEmpty) {
+          final text = choices[0]['message']['content'] as String? ?? '';
+          return {
+            'id': data['id'] ?? 'chatcmpl-1',
+            'object': 'chat.completion',
+            'created': data['created'] ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            'model': data['model'] ?? '',
+            'choices': [
+              {'index': 0, 'message': {'role': 'assistant', 'content': text}, 'finish_reason': 'stop'}
+            ],
+          } as Map<String, dynamic>;
+        }
+      }
+    } catch (e) {
+      // Silently fall through to local model error
+    }
+    return null;
   }
 
   Future<void> _handleCompletions(HttpRequest request) async {

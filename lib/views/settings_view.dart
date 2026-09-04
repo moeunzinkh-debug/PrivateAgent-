@@ -155,6 +155,9 @@ class SettingsView extends GetView<SettingsController> {
               _sectionLabel(context, 'IMAGE GENERATION PARAMETERS'),
               _buildImageGenerationCard(context, isDark),
               const SizedBox(height: 24),
+              _sectionLabel(context, 'CUSTOM API'),
+              _buildCustomApiCard(context, isDark),
+              const SizedBox(height: 24),
               _sectionLabel(context, 'ABOUT'),
               _appleGroupedCard(context, isDark, children: [
                 Padding(
@@ -813,6 +816,155 @@ class SettingsView extends GetView<SettingsController> {
                     color: const Color(0xFFFF6B6B),
                     fontWeight: FontWeight.w500)),
           ],
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _buildCustomApiCard(BuildContext context, bool isDark) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = Get.find<SettingsController>();
+    final customKey = controller.customApiKey.value;
+    final customBaseUrl = controller.customApiBaseUrl.value;
+    final customModels = controller.customApiModels.value.isNotEmpty
+        ? controller.customApiModels.value.split(',')
+        : [];
+
+    return _appleGroupedCard(context, isDark, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.api_rounded,
+                size: 16, color: isDark ? const Color(0xFF0A84FF) : AppColors.primary),
+            const SizedBox(width: 8),
+            Text(khmerApiSectionTitle, style: GoogleFonts.inter(
+                fontSize: 15, fontWeight: FontWeight.w400)),
+            const Spacer(),
+            if (customKey.isNotEmpty)
+              TextButton(
+                onPressed: () => controller.clearCustomApi(),
+                child: Text('លុប', style: GoogleFonts.inter(
+                    fontSize: 12, color: AppColors.warning)),
+              ),
+          ]),
+          const SizedBox(height: 8),
+          // API Key
+          TextField(
+            controller: controller.customApiKeyCtrl,
+            onChanged: (v) => controller.customApiKey.value = v,
+            onSubmitted: (_) => controller.loadCustomApiModels(),
+            decoration: InputDecoration(
+              labelText: khmerCustomApiPrompt,
+              hintText: 'Paste API key from xkiro or OpenRouter',
+              border: OutlineInputBorder(),
+              suffixIcon: customKey.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.copy, size: 18),
+                      onPressed: () => controller.copyText(customKey, 'API key'),
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Base URL
+          TextField(
+            controller: controller.customApiBaseUrlCtrl,
+            onChanged: (v) => controller.customApiBaseUrl.value = v,
+            onSubmitted: (_) => controller.loadCustomApiModels(),
+            decoration: InputDecoration(
+              labelText: khmerCustomBaseUrlPrompt,
+              hintText: 'https://openrouter.ai or custom endpoint',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Models list
+          if (customModels.isNotEmpty) ...[
+            Text('កម្រើសកម្រិតការណ៍:', style: GoogleFonts.inter(
+                fontSize: 13, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final model in customModels)
+                  ChoiceChip(
+                    label: Text(model),
+                    selected: controller.customApiModel.value == model,
+                    onSelected: (_) => controller.customApiModel.value = model,
+                    visualDensity: VisualDensity.compact,
+                    labelStyle: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: controller.customApiModel.value == model
+                          ? Colors.white
+                          : Theme.of(context).hintColor,
+                    ),
+                    selectedColor: isDark
+                        ? const Color(0xFF0A84FF)
+                        : AppColors.primary,
+                    backgroundColor: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.04),
+                    side: BorderSide(
+                      color: controller.customApiModel.value == model
+                          ? Colors.transparent
+                          : Theme.of(context).dividerColor.withValues(alpha: 0.3),
+                    ),
+                    showCheckmark: false,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: controller.customApiModel.value.isNotEmpty
+                  ? controller.customApiModel.value
+                  : null,
+              decoration: InputDecoration(
+                labelText: 'ជ្រើសរើសកម្រិត',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('--')),
+                for (final model in customModels)
+                  DropdownMenuItem(value: model, child: Text(model)),
+              ],
+              onChanged: (value) {
+                if (value != null && value.isNotEmpty) {
+                  controller.customApiModel.value = value;
+                }
+              },
+            ),
+          ] else
+            Text(
+              controller.customApiError.value.isNotEmpty
+                  ? khmerErrorLoadingModels + ': ${controller.customApiError.value}'
+                  : khmerNoModelsLoaded,
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: Theme.of(context).hintColor),
+            ),
+          const SizedBox(height: 8),
+          // Load models button
+          ElevatedButton.icon(
+            onPressed: customKey.isNotEmpty && customBaseUrl.isNotEmpty
+                ? () => controller.loadCustomApiModels()
+                : null,
+            icon: const Icon(Icons.cloud_download_rounded),
+            label: Text(khmerLoadModelsBtn),
+          ),
+          const SizedBox(height: 8),
+          // Status
+          Obx(() => Text(
+                controller.isLoadingModels.value
+                    ? 'ការការប្រៀបភ្រៀង...'
+                    : controller.customApiError.value.isNotEmpty
+                        ? 'កែនិងការស្វែងរក: ${controller.customApiError.value}'
+                        : khmerNoModelsLoaded,
+                style: GoogleFonts.inter(
+                    fontSize: 12, color: AppColors.hint),
+              ),
+          ),
         ]),
       ),
     ]);

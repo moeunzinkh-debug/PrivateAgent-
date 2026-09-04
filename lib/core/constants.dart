@@ -50,6 +50,24 @@ class AppConstants {
   static const String keyContextSize = 'context_size';
   static const String keyServerApiKey = 'server_api_key';
   static const String keyServerUseApiKey = 'server_use_api_key';
+
+  // Custom API (xkiro / OpenRouter)
+  static const String keyCustomApiKey = 'custom_api_key';
+  static const String keyCustomApiBaseUrl = 'custom_api_base_url';
+  static const String keyCustomApiModels = 'custom_api_models';
+  static const String keyCustomApiModel = 'custom_api_model';
+
+  // Khmer language strings
+  static const String khmerCopyLabel = 'ចម្លងអត្ថបទ';
+  static const String khmerCopiedLabel = 'ចម្លងរួចរាល់';
+  static const String khmerApiSectionTitle = 'API កែវិទ្យាល័យការណ៍';
+  static const String khmerLoadModelsBtn = 'ចុចទិញការបញ្ជាក់សំខាន់កំនត់';
+  static const String khmerClearApiBtn = 'លុបការណ៍';
+  static const String khmerCustomApiPrompt = 'បញ្ជាក់ API Key ពី xkiro / OpenRouter';
+  static const String khmerCustomBaseUrlPrompt = 'បញ្ជាក់ Base URL';
+  static const String khmerNoModelsLoaded = 'មិនជំនួយការណ៍ៗ';
+  static const String khmerErrorLoadingModels = 'កែនិងការស្វែងរកកែនិងការបញ្ជាក់សំខាន់កំនត់មិនអាច';
+  static const String khmerApiKeyCopied = 'ការចម្លងអត្ថបទត្រឹមនេះត្រូវការបញ្ជាក់ទេ!';
   static const String keyImageSteps = 'image_steps';
   static const String keyImageGenForceCpu = 'image_gen_force_cpu';
   static const String keyImageGenBackend = 'image_gen_backend';
